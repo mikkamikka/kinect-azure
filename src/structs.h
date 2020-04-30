@@ -106,6 +106,7 @@ typedef struct _JSFrame
 	JSImageFrame depthImageFrame;
 	JSImageFrame irImageFrame;
 	JSImageFrame depthToColorImageFrame;
+    JSImageFrame irToColorImageFrame;
 	JSImageFrame colorToDepthImageFrame;
 	void reset() {
 		imuSample.reset();
@@ -113,6 +114,7 @@ typedef struct _JSFrame
 		depthImageFrame.reset();
 		irImageFrame.reset();
 		depthToColorImageFrame.reset();
+        irToColorImageFrame.reset();
 		colorToDepthImageFrame.reset();
 	}
 	void resetBodyFrame() {
@@ -126,6 +128,7 @@ typedef struct _CustomDeviceConfig
 {
 	bool include_imu_sample = false;
 	bool include_depth_to_color = false;
+    bool include_ir_to_color = false;
 	bool include_color_to_depth = false;
 	bool include_body_index_map = false;
 	bool flip_BGRA_to_RGBA = false;
@@ -138,6 +141,7 @@ typedef struct _CustomDeviceConfig
 	void reset() {
 		include_imu_sample = false;
 		include_depth_to_color = false;
+        include_ir_to_color = false;
 		include_color_to_depth = false;
 		include_body_index_map = false;
 		flip_BGRA_to_RGBA = false;

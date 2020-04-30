@@ -82,6 +82,7 @@ void copyCustomConfig(Napi::Object js_config){
     ||  g_customDeviceConfig.apply_depth_to_alpha == true
     ||  g_customDeviceConfig.depth_to_greyscale == true
     ||  g_customDeviceConfig.depth_to_redblue == true;
+g_customDeviceConfig.include_ir_to_color = convertToBool("include_ir_to_color", js_config, g_customDeviceConfig.include_ir_to_color);
   
 }
 
@@ -518,6 +519,16 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
         depthToColorImageFrame.Set(Napi::String::New(env, "strideBytes"), Napi::Number::New(env, jsFrame.depthToColorImageFrame.stride_bytes));
         data.Set(Napi::String::New(env, "depthToColorImageFrame"), depthToColorImageFrame);
       }
+      		{
+				Napi::Object irToColorImageFrame = Napi::Object::New(env);
+				Napi::Buffer<uint8_t> imageData = Napi::Buffer<uint8_t>::New(env, jsFrame.irToColorImageFrame.image_data, jsFrame.irToColorImageFrame.image_length);
+				irToColorImageFrame.Set(Napi::String::New(env, "imageData"), imageData);
+				irToColorImageFrame.Set(Napi::String::New(env, "imageLength"), Napi::Number::New(env, jsFrame.irToColorImageFrame.image_length));
+				irToColorImageFrame.Set(Napi::String::New(env, "width"), Napi::Number::New(env, jsFrame.irToColorImageFrame.width));
+				irToColorImageFrame.Set(Napi::String::New(env, "height"), Napi::Number::New(env, jsFrame.irToColorImageFrame.height));
+				irToColorImageFrame.Set(Napi::String::New(env, "strideBytes"), Napi::Number::New(env, jsFrame.irToColorImageFrame.stride_bytes));
+				data.Set(Napi::String::New(env, "irToColorImageFrame"), irToColorImageFrame);
+			}
       {
         Napi::Object colorToDepthImageFrame = Napi::Object::New(env);
         Napi::Buffer<uint8_t> imageData = Napi::Buffer<uint8_t>::New(env, jsFrame.colorToDepthImageFrame.image_data, jsFrame.colorToDepthImageFrame.image_length);
@@ -644,6 +655,9 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
       k4a_image_t ir_image = NULL;
       k4a_image_t depth_to_color_image = NULL;
       k4a_image_t color_to_depth_image = NULL;
+      //ff-mika
+      k4a_image_t ir_to_color_image = NULL;
+
       if (g_customDeviceConfig.include_imu_sample)
       {
         while (k4a_device_get_imu_sample(g_device, &imu_sample, 0) == K4A_WAIT_RESULT_SUCCEEDED)
@@ -737,6 +751,70 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
           }
         }
       }
+
+        // ff-mika
+
+        k4a_image_t custom_ir_image = NULL;
+        int ir_image_width_pixels = k4a_image_get_width_pixels(ir_image);
+        int ir_image_height_pixels = k4a_image_get_height_pixels(ir_image);
+        int ir_image_stride_bytes = k4a_image_get_stride_bytes(ir_image);
+        uint8_t *ir_image_buffer = k4a_image_get_buffer(ir_image);
+        if (K4A_RESULT_SUCCEEDED !=	k4a_image_create_from_buffer( K4A_IMAGE_FORMAT_CUSTOM16,
+                                                                ir_image_width_pixels,
+                                                                ir_image_height_pixels,
+                                                                ir_image_stride_bytes,
+                                                                ir_image_buffer,
+                                                                ir_image_height_pixels * ir_image_stride_bytes,
+                                                                [](void *_buffer, void *context) {
+                                                                    delete[](uint8_t *) _buffer;
+                                                                    (void)context;
+                                                                },
+                                                                NULL,
+                                                                &custom_ir_image ) )
+        {
+            printf("Failed to create custom ir image\n");
+            //return false;
+        }
+
+        if (g_customDeviceConfig.include_ir_to_color)
+        {
+
+            int ir_to_color_image_created = k4a_image_create(K4A_IMAGE_FORMAT_CUSTOM16, jsFrame.colorImageFrame.width, jsFrame.colorImageFrame.height, jsFrame.colorImageFrame.width * 2, &ir_to_color_image);
+
+            int depth_to_color_image_created = k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16, jsFrame.colorImageFrame.width, jsFrame.colorImageFrame.height, jsFrame.colorImageFrame.width * 2, &depth_to_color_image);
+
+            if ( (ir_to_color_image_created	== K4A_RESULT_SUCCEEDED) && (depth_to_color_image_created == K4A_RESULT_SUCCEEDED) )
+            {
+
+                jsFrame.irToColorImageFrame.height = 101; //debug
+                                    
+                if (k4a_transformation_depth_image_to_color_camera_custom(
+                                transformer,
+                                depth_image,
+                                custom_ir_image,
+                                depth_to_color_image,
+                                ir_to_color_image,
+                                K4A_TRANSFORMATION_INTERPOLATION_TYPE_NEAREST,
+                                0) == K4A_RESULT_SUCCEEDED)
+                {
+                    jsFrame.irToColorImageFrame.width = 102; //debug
+
+                    jsFrame.irToColorImageFrame.width = k4a_image_get_width_pixels(ir_to_color_image);
+                    jsFrame.irToColorImageFrame.height = k4a_image_get_height_pixels(ir_to_color_image);
+
+                    jsFrame.irToColorImageFrame.image_length = k4a_image_get_size(ir_to_color_image);
+                    jsFrame.irToColorImageFrame.stride_bytes = k4a_image_get_stride_bytes(ir_to_color_image);
+                    jsFrame.irToColorImageFrame.image_data = new uint8_t[jsFrame.irToColorImageFrame.image_length];
+
+                }
+                else {
+                    jsFrame.irToColorImageFrame.width = 1;
+                }
+            }
+        }
+
+        //
+
       if (g_customDeviceConfig.include_color_to_depth)
       {
         if(k4a_image_create(K4A_IMAGE_FORMAT_COLOR_BGRA32, jsFrame.depthImageFrame.width, jsFrame.depthImageFrame.height, jsFrame.depthImageFrame.width * 4, &color_to_depth_image) == K4A_RESULT_SUCCEEDED)
@@ -836,6 +914,59 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
           memcpy(jsFrame.depthToColorImageFrame.image_data, image_data, jsFrame.depthToColorImageFrame.image_length);
         }
       }
+
+			// ff-mika
+
+			if (ir_to_color_image != NULL)
+			{
+				uint8_t* image_data = k4a_image_get_buffer(ir_to_color_image);
+
+				//if (g_customDeviceConfig.depth_to_greyscale == true || g_customDeviceConfig.depth_to_redblue == true) {
+
+				//	if (processed_depth_data == NULL)
+				//		processed_depth_data = new uint8_t[jsFrame.colorImageFrame.image_length];
+
+				//	depthPixelIndex = 0;
+				//	if (g_customDeviceConfig.depth_to_greyscale == true) {
+
+				//		for (int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i += 4) {
+				//			combined = (image_data[depthPixelIndex + 1] << 8) | (image_data[depthPixelIndex] & 0xff);
+				//			normalizedValue = map(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
+				//			if (normalizedValue >= 0xF0) normalizedValue = 0;
+				//			processed_depth_data[i] = normalizedValue;
+				//			processed_depth_data[i + 1] = normalizedValue;
+				//			processed_depth_data[i + 2] = normalizedValue;
+				//			processed_depth_data[i + 3] = 0xFF;
+				//			depthPixelIndex += 2;
+				//		}
+
+				//	}
+				//	else if (g_customDeviceConfig.depth_to_redblue == true) {
+				//		for (int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i += 4) {
+				//			combined = std::min(g_customDeviceConfig.max_depth, std::max(g_customDeviceConfig.min_depth, image_data[depthPixelIndex + 1] << 8 | image_data[depthPixelIndex]));
+				//			float hue = ((float)(combined - g_customDeviceConfig.min_depth) / (float)(g_customDeviceConfig.max_depth - g_customDeviceConfig.min_depth));
+				//			hue = 1 - hue;
+				//			colorUtils::hsvToRgb(hue * 0xFF, 1.0f, 1.0f, rgb);
+				//			processed_depth_data[i] = rgb[0];
+				//			processed_depth_data[i + 1] = rgb[1];
+				//			processed_depth_data[i + 2] = rgb[2];
+				//			processed_depth_data[i + 3] = 0xFF;
+				//			depthPixelIndex += 2;
+				//		}
+				//	}
+				//	memcpy(jsFrame.depthToColorImageFrame.image_data, processed_depth_data, jsFrame.depthToColorImageFrame.image_length);
+				//}
+				//else {
+					memcpy(jsFrame.irToColorImageFrame.image_data, image_data, jsFrame.irToColorImageFrame.image_length);
+				//}
+
+				k4a_image_release(ir_to_color_image);
+				ir_to_color_image = NULL;
+			}
+
+			//
+
+
       if (color_to_depth_image != NULL)
       {
         uint8_t* image_data = k4a_image_get_buffer(color_to_depth_image);
