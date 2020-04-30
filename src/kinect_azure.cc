@@ -797,14 +797,21 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
                                 K4A_TRANSFORMATION_INTERPOLATION_TYPE_NEAREST,
                                 0) == K4A_RESULT_SUCCEEDED)
                 {
-                    jsFrame.irToColorImageFrame.width = 102; //debug
-
+                    // copy ir
                     jsFrame.irToColorImageFrame.width = k4a_image_get_width_pixels(ir_to_color_image);
                     jsFrame.irToColorImageFrame.height = k4a_image_get_height_pixels(ir_to_color_image);
 
                     jsFrame.irToColorImageFrame.image_length = k4a_image_get_size(ir_to_color_image);
                     jsFrame.irToColorImageFrame.stride_bytes = k4a_image_get_stride_bytes(ir_to_color_image);
                     jsFrame.irToColorImageFrame.image_data = new uint8_t[jsFrame.irToColorImageFrame.image_length];
+
+                    // copy depth
+                    jsFrame.depthToColorImageFrame.width = k4a_image_get_width_pixels(depth_to_color_image);
+                    jsFrame.depthToColorImageFrame.height = k4a_image_get_height_pixels(depth_to_color_image);
+            
+                    jsFrame.depthToColorImageFrame.image_length = k4a_image_get_size(depth_to_color_image);
+                    jsFrame.depthToColorImageFrame.stride_bytes = k4a_image_get_stride_bytes(depth_to_color_image);
+                    jsFrame.depthToColorImageFrame.image_data = new uint8_t[jsFrame.depthToColorImageFrame.image_length];
 
                 }
                 else {
@@ -919,7 +926,9 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
 
 			if (ir_to_color_image != NULL)
 			{
-				uint8_t* image_data = k4a_image_get_buffer(ir_to_color_image);
+				uint8_t* ir_image_data = k4a_image_get_buffer(ir_to_color_image);
+
+                uint8_t* depth_image_data = k4a_image_get_buffer(depth_to_color_image);
 
 				//if (g_customDeviceConfig.depth_to_greyscale == true || g_customDeviceConfig.depth_to_redblue == true) {
 
@@ -957,11 +966,13 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
 				//	memcpy(jsFrame.depthToColorImageFrame.image_data, processed_depth_data, jsFrame.depthToColorImageFrame.image_length);
 				//}
 				//else {
-					memcpy(jsFrame.irToColorImageFrame.image_data, image_data, jsFrame.irToColorImageFrame.image_length);
+					memcpy(jsFrame.irToColorImageFrame.image_data, ir_image_data, jsFrame.irToColorImageFrame.image_length);
 				//}
 
-				k4a_image_release(ir_to_color_image);
-				ir_to_color_image = NULL;
+                memcpy(jsFrame.depthToColorImageFrame.image_data, depth_image_data, jsFrame.depthToColorImageFrame.image_length);
+
+				//k4a_image_release(ir_to_color_image);
+				//ir_to_color_image = NULL;
 			}
 
 			//
