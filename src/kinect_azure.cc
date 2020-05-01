@@ -657,6 +657,7 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
       k4a_image_t color_to_depth_image = NULL;
       //ff-mika
       k4a_image_t ir_to_color_image = NULL;
+      k4a_image_t custom_ir_image = NULL;
 
       if (g_customDeviceConfig.include_imu_sample)
       {
@@ -754,30 +755,33 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
 
         // ff-mika
 
-        k4a_image_t custom_ir_image = NULL;
-        int ir_image_width_pixels = k4a_image_get_width_pixels(ir_image);
-        int ir_image_height_pixels = k4a_image_get_height_pixels(ir_image);
-        int ir_image_stride_bytes = k4a_image_get_stride_bytes(ir_image);
-        uint8_t *ir_image_buffer = k4a_image_get_buffer(ir_image);
-        if (K4A_RESULT_SUCCEEDED !=	k4a_image_create_from_buffer( K4A_IMAGE_FORMAT_CUSTOM16,
-                                                                ir_image_width_pixels,
-                                                                ir_image_height_pixels,
-                                                                ir_image_stride_bytes,
-                                                                ir_image_buffer,
-                                                                ir_image_height_pixels * ir_image_stride_bytes,
-                                                                [](void *_buffer, void *context) {
-                                                                    delete[](uint8_t *) _buffer;
-                                                                    (void)context;
-                                                                },
-                                                                NULL,
-                                                                &custom_ir_image ) )
-        {
-            printf("Failed to create custom ir image\n");
-            //return false;
-        }
+        
+        
 
         if (g_customDeviceConfig.include_ir_to_color)
-        {
+        {           
+
+
+            int ir_image_width_pixels = k4a_image_get_width_pixels(ir_image);
+            int ir_image_height_pixels = k4a_image_get_height_pixels(ir_image);
+            int ir_image_stride_bytes = k4a_image_get_stride_bytes(ir_image);
+            uint8_t *ir_image_buffer = k4a_image_get_buffer(ir_image);
+            if (K4A_RESULT_SUCCEEDED !=	k4a_image_create_from_buffer( K4A_IMAGE_FORMAT_CUSTOM16,
+                                                                    ir_image_width_pixels,
+                                                                    ir_image_height_pixels,
+                                                                    ir_image_stride_bytes,
+                                                                    ir_image_buffer,
+                                                                    ir_image_height_pixels * ir_image_stride_bytes,
+                                                                    [](void *_buffer, void *context) {
+                                                                        delete[](uint8_t *) _buffer;
+                                                                        (void)context;
+                                                                    },
+                                                                    NULL,
+                                                                    &custom_ir_image ) )
+            {
+                printf("Failed to create custom ir image\n");                
+            }
+
 
             int ir_to_color_image_created = k4a_image_create(K4A_IMAGE_FORMAT_CUSTOM16, jsFrame.colorImageFrame.width, jsFrame.colorImageFrame.height, jsFrame.colorImageFrame.width * 2, &ir_to_color_image);
 
@@ -816,8 +820,12 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
                 }
                 else {
                     jsFrame.irToColorImageFrame.width = 1;
-                }
+
+                    printf("Failed to create transformation_depth_image_to_color_camera_custom\n");
+                }             
+
             }
+
         }
 
         //
@@ -1148,6 +1156,14 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
         k4a_image_release(depth_to_color_image);
         depth_to_color_image = NULL;
       }
+      if (ir_to_color_image != NULL) {
+        k4a_image_release(ir_to_color_image);
+        ir_to_color_image = NULL;
+      }
+    //   if (custom_ir_image != NULL) {
+    //     k4a_image_release(custom_ir_image);
+    //     custom_ir_image = NULL;
+    //   }
 
       k4a_capture_release(sensor_capture);
      
