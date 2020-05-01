@@ -928,7 +928,7 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
 			{
 				uint8_t* ir_image_data = k4a_image_get_buffer(ir_to_color_image);
 
-                uint8_t* depth_image_data = k4a_image_get_buffer(depth_to_color_image);
+                //uint8_t* depth_image_data = k4a_image_get_buffer(depth_to_color_image);
 
 				//if (g_customDeviceConfig.depth_to_greyscale == true || g_customDeviceConfig.depth_to_redblue == true) {
 
@@ -969,7 +969,7 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
 					memcpy(jsFrame.irToColorImageFrame.image_data, ir_image_data, jsFrame.irToColorImageFrame.image_length);
 				//}
 
-                memcpy(jsFrame.depthToColorImageFrame.image_data, depth_image_data, jsFrame.depthToColorImageFrame.image_length);
+                //memcpy(jsFrame.depthToColorImageFrame.image_data, depth_image_data, jsFrame.depthToColorImageFrame.image_length);
 
 				//k4a_image_release(ir_to_color_image);
 				//ir_to_color_image = NULL;
