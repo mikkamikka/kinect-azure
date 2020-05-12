@@ -136,7 +136,7 @@ typedef struct _CustomDeviceConfig
 	bool depth_to_greyscale = false;
 	bool depth_to_redblue = false;
 	int min_depth = 100;
-	int max_depth = 3000;
+	int max_depth = 4000;
 	
 	void reset() {
 		include_imu_sample = false;
@@ -149,7 +149,7 @@ typedef struct _CustomDeviceConfig
 		depth_to_greyscale = false;
 		depth_to_redblue = false;
 		min_depth = 100;
-		max_depth = 3000;
+		max_depth = 4000;
 	}
 } CustomDeviceConfig;
 

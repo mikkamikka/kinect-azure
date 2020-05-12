@@ -738,6 +738,9 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
             jsFrame.depthToColorImageFrame.height = k4a_image_get_height_pixels(depth_to_color_image);
             
             if (g_customDeviceConfig.depth_to_greyscale == true || g_customDeviceConfig.depth_to_redblue == true){
+
+              jsFrame.depthToColorImageFrame.width = k4a_image_get_width_pixels(color_image);
+              jsFrame.depthToColorImageFrame.height = k4a_image_get_height_pixels(color_image);
               jsFrame.depthToColorImageFrame.image_length = k4a_image_get_size(color_image);
               jsFrame.depthToColorImageFrame.stride_bytes = k4a_image_get_stride_bytes(color_image);
               jsFrame.depthToColorImageFrame.image_data = new uint8_t[jsFrame.colorImageFrame.image_length];
@@ -810,12 +813,23 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
                     jsFrame.irToColorImageFrame.image_data = new uint8_t[jsFrame.irToColorImageFrame.image_length];
 
                     // copy depth
-                    jsFrame.depthToColorImageFrame.width = k4a_image_get_width_pixels(depth_to_color_image);
-                    jsFrame.depthToColorImageFrame.height = k4a_image_get_height_pixels(depth_to_color_image);
-            
-                    jsFrame.depthToColorImageFrame.image_length = k4a_image_get_size(depth_to_color_image);
-                    jsFrame.depthToColorImageFrame.stride_bytes = k4a_image_get_stride_bytes(depth_to_color_image);
-                    jsFrame.depthToColorImageFrame.image_data = new uint8_t[jsFrame.depthToColorImageFrame.image_length];
+
+                    if (g_customDeviceConfig.depth_to_greyscale == true || g_customDeviceConfig.depth_to_redblue == true){
+
+                        jsFrame.depthToColorImageFrame.width = k4a_image_get_width_pixels(color_image);
+                        jsFrame.depthToColorImageFrame.height = k4a_image_get_height_pixels(color_image);
+                        jsFrame.depthToColorImageFrame.image_length = k4a_image_get_size(color_image);
+                        jsFrame.depthToColorImageFrame.stride_bytes = k4a_image_get_stride_bytes(color_image);
+                        jsFrame.depthToColorImageFrame.image_data = new uint8_t[jsFrame.colorImageFrame.image_length];
+
+                        } else {
+                            jsFrame.depthToColorImageFrame.width = k4a_image_get_width_pixels(depth_to_color_image);
+                            jsFrame.depthToColorImageFrame.height = k4a_image_get_height_pixels(depth_to_color_image);
+                    
+                            jsFrame.depthToColorImageFrame.image_length = k4a_image_get_size(depth_to_color_image);
+                            jsFrame.depthToColorImageFrame.stride_bytes = k4a_image_get_stride_bytes(depth_to_color_image);
+                            jsFrame.depthToColorImageFrame.image_data = new uint8_t[jsFrame.depthToColorImageFrame.image_length];
+                        }
 
                 }
                 else {
@@ -900,31 +914,44 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
           depthPixelIndex = 0;
           if (g_customDeviceConfig.depth_to_greyscale == true){
             
-            for( int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i+=4 ) {
-              combined = (image_data[depthPixelIndex+1] << 8) | (image_data[depthPixelIndex] & 0xff);
-              normalizedValue = map(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
-              if (normalizedValue >= 0xF0) normalizedValue = 0;
-              processed_depth_data[i] = normalizedValue;
-              processed_depth_data[i+1] = normalizedValue;
-              processed_depth_data[i+2] = normalizedValue;
-              processed_depth_data[i+3] = 0xFF;
-              depthPixelIndex += 2;
-            }
+                for( int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i+=4 ) {
+                    combined = (image_data[depthPixelIndex+1] << 8) | (image_data[depthPixelIndex] & 0xff);
+                    normalizedValue = map(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
+                    if (normalizedValue >= 0xF0) normalizedValue = 0;
+                    processed_depth_data[i] = normalizedValue;
+                    processed_depth_data[i+1] = normalizedValue;
+                    processed_depth_data[i+2] = normalizedValue;
+                    processed_depth_data[i+3] = 0xFF;
+                    depthPixelIndex += 2;
+                }
+
+                // for( int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i+=4 ) {
+                //   //combined = (image_data[depthPixelIndex+1] << 8) | (image_data[depthPixelIndex] & 0xff);
+                //   //normalizedValue = map(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
+                //   //if (normalizedValue >= 0xF0) normalizedValue = 0;
+                //   processed_depth_data[i] = image_data[depthPixelIndex + 0];
+                //   processed_depth_data[i+1] = image_data[depthPixelIndex + 1];
+                //   processed_depth_data[i+2] = image_data[depthPixelIndex + 2];
+                //   processed_depth_data[i+3] = 0xFF;
+                //   depthPixelIndex += 2;
+                // }
             
-          } else if (g_customDeviceConfig.depth_to_redblue == true){
-            for( int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i+=4 ) {
-              combined = std::min(g_customDeviceConfig.max_depth, std::max(g_customDeviceConfig.min_depth, image_data[depthPixelIndex+1] << 8 | image_data[depthPixelIndex]));
-              float hue = ((float)(combined - g_customDeviceConfig.min_depth) / (float)(g_customDeviceConfig.max_depth - g_customDeviceConfig.min_depth));
-              hue = 1 - hue;
-              colorUtils::hsvToRgb(hue * 0xFF, 1.0f, 1.0f, rgb);
-              processed_depth_data[i] = rgb[0];
-              processed_depth_data[i+1] = rgb[1];
-              processed_depth_data[i+2] = rgb[2];
-              processed_depth_data[i+3] = 0xFF;
-              depthPixelIndex += 2;
-            }
-          }
+          } else 
+                if (g_customDeviceConfig.depth_to_redblue == true){
+                    for( int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i+=4 ) {
+                        combined = std::min(g_customDeviceConfig.max_depth, std::max(g_customDeviceConfig.min_depth, image_data[depthPixelIndex+1] << 8 | image_data[depthPixelIndex]));
+                        float hue = ((float)(combined - g_customDeviceConfig.min_depth) / (float)(g_customDeviceConfig.max_depth - g_customDeviceConfig.min_depth));
+                        hue = 1 - hue;
+                        colorUtils::hsvToRgb(hue * 0xFF, 1.0f, 1.0f, rgb);
+                        processed_depth_data[i] = rgb[0];
+                        processed_depth_data[i+1] = rgb[1];
+                        processed_depth_data[i+2] = rgb[2];
+                        processed_depth_data[i+3] = 0xFF;
+                        depthPixelIndex += 2;
+                    }
+                }
           memcpy(jsFrame.depthToColorImageFrame.image_data, processed_depth_data, jsFrame.depthToColorImageFrame.image_length);
+        
         } else {
           memcpy(jsFrame.depthToColorImageFrame.image_data, image_data, jsFrame.depthToColorImageFrame.image_length);
         }
