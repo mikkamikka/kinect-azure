@@ -226,6 +226,9 @@ Napi::Value MethodStartPlayback(const Napi::CallbackInfo& info) {
 Napi::Value MethodStopPlayback(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   k4a_playback_close(playback_handle);
+  is_playbackFileOpen = false;
+  playback_handle = NULL;
+  is_playing = false;
   return Napi::Boolean::New(env, true);
 }
 
