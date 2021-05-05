@@ -24,6 +24,9 @@
         const KinectAzure = require('kinect-azure');
         const kinect = new KinectAzure();
 
+        window.kinect = kinect;
+        window.KinectAzure = KinectAzure;
+
         let bodies = [];
 
         const canvas = document.getElementById('outputCanvas');
@@ -61,12 +64,16 @@
           kinect.startCameras({
             depth_mode: KinectAzure.K4A_DEPTH_MODE_NFOV_UNBINNED
           });
-          kinect.createTracker();
+          kinect.createTracker({
+            processing_mode: KinectAzure.K4ABT_TRACKER_PROCESSING_MODE_GPU_CUDA,
+            model_path: "C:\\Program Files\\Azure Kinect Body Tracking SDK\\tools\\dnn_model_2_0_lite_op11.onnx"
+          });
           kinect.startListening((data) => {
             // store the bodies in the global bodies variable
             // we are rendering them in the animate render loop
             bodies = data.bodyFrame.bodies;
           });
+
         }
 
         const resize = () => {

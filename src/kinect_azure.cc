@@ -16,6 +16,27 @@
 #include "colorUtils.cc"
 #include <algorithm>
 
+/**
+* environment variables
+* K4ABT_ENABLE_LOG_TO_A_FILE =
+*    0    - completely disable logging to a file
+*    log\custom.log - log all messages to the path and file specified - must end in '.log' to
+*                     be considered a valid entry
+*    ** When enabled this takes precedence over the value of K4A_ENABLE_LOG_TO_STDOUT
+*
+* K4ABT_ENABLE_LOG_TO_STDOUT =
+*    0    - disable logging to stdout
+*    all else  - log all messages to stdout
+*
+* K4ABT_LOG_LEVEL =
+*    'c'  - log all messages of level 'critical' criticality
+*    'e'  - log all messages of level 'error' or higher criticality
+*    'w'  - log all messages of level 'warning' or higher criticality
+*    'i'  - log all messages of level 'info' or higher criticality
+*    't'  - log all messages of level 'trace' or higher criticality
+*    DEFAULT - log all message of level 'error' or higher criticality
+*/
+
 k4a_device_t g_device = NULL;
 k4a_device_configuration_t g_deviceConfig = K4A_DEVICE_CONFIG_INIT_DISABLE_ALL;
 CustomDeviceConfig g_customDeviceConfig;
@@ -371,7 +392,16 @@ Napi::Value MethodCreateTracker(const Napi::CallbackInfo& info) {
       {
         tracker_config.gpu_device_id = (int32_t) js_gpu_device_id.As<Napi::Number>().Int32Value();
       }
+
+    //   Napi::Value js_model_path = js_config.Get("model_path");
+    //   //if (js_model_path.IsNumber())
+    //   //{
+    //     tracker_config.model_path = (char *) js_model_path;
+    //   //}
+
   }
+
+  printf("Calling body tracker create\n", tracker_config.processing_mode);
   
   k4abt_tracker_create(&sensor_calibration, tracker_config, &g_tracker);
   return Napi::Boolean::New(env, true);
@@ -1030,6 +1060,7 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
         k4a_wait_result_t queue_capture_result = k4abt_tracker_enqueue_capture(g_tracker, sensor_capture, 0);
         if (queue_capture_result == K4A_WAIT_RESULT_FAILED)
         {
+          printf("Failed to body tracker enqueue capture\n");
           k4a_capture_release(sensor_capture);
           mtx.unlock();
           break;
