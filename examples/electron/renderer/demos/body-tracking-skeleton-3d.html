@@ -65,8 +65,12 @@
             depth_mode: KinectAzure.K4A_DEPTH_MODE_NFOV_UNBINNED
           });
           kinect.createTracker({
-            processing_mode: KinectAzure.K4ABT_TRACKER_PROCESSING_MODE_GPU_CUDA,
-            model_path: "C:\\Program Files\\Azure Kinect Body Tracking SDK\\tools\\dnn_model_2_0_lite_op11.onnx"
+            // processing_mode: KinectAzure.K4ABT_TRACKER_PROCESSING_MODE_GPU_CUDA,
+            processing_mode: KinectAzure.K4ABT_TRACKER_PROCESSING_MODE_GPU_DIRECTML,
+            // processing_mode: KinectAzure.K4ABT_TRACKER_PROCESSING_MODE_GPU_TENSORRT
+
+            // model_path: "C:\\Program Files\\Azure Kinect Body Tracking SDK\\tools\\dnn_model_2_0_op11.onnx"
+            // model_path: "C:\\Program Files\\Azure Kinect Body Tracking SDK\\tools\\dnn_model_2_0_lite_op11.onnx"
           });
           kinect.startListening((data) => {
             // store the bodies in the global bodies variable
