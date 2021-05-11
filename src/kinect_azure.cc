@@ -70,6 +70,8 @@ float combined = 0;
 int normalizedValue = 0;
 int rgb[3];
 
+std::string path;
+
 inline bool convertToBool(const char* key, Napi::Object js_config, bool currentValue) {
   Napi::Value js_value = js_config.Get(key);
   if (js_value.IsBoolean())
@@ -393,15 +395,18 @@ Napi::Value MethodCreateTracker(const Napi::CallbackInfo& info) {
         tracker_config.gpu_device_id = (int32_t) js_gpu_device_id.As<Napi::Number>().Int32Value();
       }
 
-    //   Napi::Value js_model_path = js_config.Get("model_path");
-    //   //if (js_model_path.IsNumber())
-    //   //{
-    //     tracker_config.model_path = (char *) js_model_path;
-    //   //}
+      Napi::Value js_model_path = js_config.Get("model_path");
+      if (js_model_path.IsString())
+      {
+        path = js_model_path.As<Napi::String>().Utf8Value();
+        tracker_config.model_path = path.c_str();
+
+        printf("DNN model path: %s\n", tracker_config.model_path);
+      }
 
   }
 
-  printf("Calling body tracker create\n", tracker_config.processing_mode);
+  printf("Calling body tracker create\n");
   
   k4abt_tracker_create(&sensor_calibration, tracker_config, &g_tracker);
   return Napi::Boolean::New(env, true);
