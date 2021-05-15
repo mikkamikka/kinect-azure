@@ -430,18 +430,6 @@ Napi::Value MethodSetTemporalSmooting(const Napi::CallbackInfo& info) {
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-//   Napi::Object js_config =  info[0].As<Napi::Object>();
-//   Napi::Value js_command = js_config.Get("command");
-
-
-//   Napi::Value js_smoothing_factor =  info[0].As<Napi::Value>();
-//   if (js_smoothing_factor.IsNumber())
-//   {
-//     int32_t time = (int32_t) js_time.As<Napi::Number>().Int32Value();
-//     k4a_playback_seek_timestamp(playback_handle, time * 1000000, K4A_PLAYBACK_SEEK_BEGIN);
-//     is_seeking = true;
-//   }
-
   Napi::Value js_smoothing_factor =  info[0].As<Napi::Value>();
   if (!js_smoothing_factor.IsNumber()) {
     Napi::TypeError::New(env, "missing value")
