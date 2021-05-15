@@ -422,6 +422,36 @@ Napi::Value MethodDestroyTracker(const Napi::CallbackInfo& info) {
   g_tracker = NULL;
   return Napi::Boolean::New(env, true);
 }
+
+Napi::Value MethodSetTemporalSmooting(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 0) {
+    Napi::TypeError::New(env, "Wrong number of arguments")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+//   Napi::Object js_config =  info[0].As<Napi::Object>();
+//   Napi::Value js_command = js_config.Get("command");
+
+
+//   Napi::Value js_smoothing_factor =  info[0].As<Napi::Value>();
+//   if (js_smoothing_factor.IsNumber())
+//   {
+//     int32_t time = (int32_t) js_time.As<Napi::Number>().Int32Value();
+//     k4a_playback_seek_timestamp(playback_handle, time * 1000000, K4A_PLAYBACK_SEEK_BEGIN);
+//     is_seeking = true;
+//   }
+
+  Napi::Value js_smoothing_factor =  info[0].As<Napi::Value>();
+  if (!js_smoothing_factor.IsNumber()) {
+    Napi::TypeError::New(env, "missing value")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  float value = (float) js_smoothing_factor.As<Napi::Number>().FloatValue();
+  k4abt_tracker_set_temporal_smoothing(g_tracker, value);
+  return info.Env().Undefined();
+}
 #endif // KINECT_AZURE_ENABLE_BODY_TRACKING
 
 Napi::Value MethodSetColorControl(const Napi::CallbackInfo& info) {
@@ -1328,6 +1358,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   #ifdef KINECT_AZURE_ENABLE_BODY_TRACKING
   exports.Set(Napi::String::New(env, "createTracker"), Napi::Function::New(env, MethodCreateTracker));
   exports.Set(Napi::String::New(env, "destroyTracker"), Napi::Function::New(env, MethodDestroyTracker));
+  exports.Set(Napi::String::New(env, "setTemporalSmooting"), Napi::Function::New(env, MethodSetTemporalSmooting));
   #endif // KINECT_AZURE_ENABLE_BODY_TRACKING
   exports.Set(Napi::String::New(env, "setColorControl"), Napi::Function::New(env, MethodSetColorControl));
   exports.Set(Napi::String::New(env, "startListening"), Napi::Function::New(env, MethodStartListening));
