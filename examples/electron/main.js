@@ -18,7 +18,9 @@ function createWindow () {
   })
 
   // and load the index.html of the app.
-  mainWindow.loadFile('renderer/index.html')
+//   mainWindow.loadFile('renderer/index.html')
+
+  mainWindow.loadFile('renderer/demos/body-tracking-NUITRACK.html')
 
   // Open the DevTools.
   // mainWindow.webContents.openDevTools()

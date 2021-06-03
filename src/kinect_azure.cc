@@ -16,6 +16,14 @@
 #include "colorUtils.cc"
 #include <algorithm>
 
+#include <nuitrack/Nuitrack.h>
+#include "NuitrackGLSample.h"
+#include <GL/freeglut.h>
+// #include <cstdlib>
+// #include <cstring>
+// #include <iostream>
+
+
 /**
 * environment variables
 * K4ABT_ENABLE_LOG_TO_A_FILE =
@@ -72,6 +80,9 @@ int rgb[3];
 
 std::string path;
 
+Napi::Function nuiJsCallback;
+Napi::Object nuiData;
+
 inline bool convertToBool(const char* key, Napi::Object js_config, bool currentValue) {
   Napi::Value js_value = js_config.Get(key);
   if (js_value.IsBoolean())
@@ -109,7 +120,7 @@ g_customDeviceConfig.include_ir_to_color = convertToBool("include_ir_to_color", 
   
 }
 
-inline int map (float value, int inputMin, int inputMax, int outputMin, int outputMax) {
+inline int remap (float value, int inputMin, int inputMax, int outputMin, int outputMax) {
   if (value > inputMax) value = inputMax;
   if (value < inputMin) value = inputMin;
   return (value - inputMin) * (outputMax - outputMin) / (inputMax - inputMin) + outputMin;
@@ -136,6 +147,16 @@ inline bool transform_joint_from_depth_3d_to_2d(
 
 Napi::Value MethodInit(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
+
+  nuiData = Napi::Object::New(env);
+
+    {
+        Napi::Object bodyFrame = Napi::Object::New(env);
+        bodyFrame.Set(Napi::String::New(env, "X"), 0);
+        bodyFrame.Set(Napi::String::New(env, "Y"), 0);
+        nuiData.Set(Napi::String::New(env, "bodyFrame"), bodyFrame);
+    }
+    
   return Napi::Boolean::New(env, true);
 }
 
@@ -947,7 +968,7 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
             
             for( int i = 0; i < jsFrame.colorImageFrame.image_length; i+=4 ) {
               combined = (depth_to_color_data[depthPixelIndex+1] << 8) | (depth_to_color_data[depthPixelIndex] & 0xff);
-              normalizedValue = map(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
+              normalizedValue = remap(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
               if (normalizedValue >= 0xF0) normalizedValue = 0;
               processed_color_data[i+3] = normalizedValue;
               depthPixelIndex += 2;
@@ -972,7 +993,7 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
             
                 for( int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i+=4 ) {
                     combined = (image_data[depthPixelIndex+1] << 8) | (image_data[depthPixelIndex] & 0xff);
-                    normalizedValue = map(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
+                    normalizedValue = remap(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
                     if (normalizedValue >= 0xF0) normalizedValue = 0;
                     processed_depth_data[i] = normalizedValue;
                     processed_depth_data[i+1] = normalizedValue;
@@ -983,7 +1004,7 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
 
                 // for( int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i+=4 ) {
                 //   //combined = (image_data[depthPixelIndex+1] << 8) | (image_data[depthPixelIndex] & 0xff);
-                //   //normalizedValue = map(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
+                //   //normalizedValue = remap(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
                 //   //if (normalizedValue >= 0xF0) normalizedValue = 0;
                 //   processed_depth_data[i] = image_data[depthPixelIndex + 0];
                 //   processed_depth_data[i+1] = image_data[depthPixelIndex + 1];
@@ -1008,7 +1029,8 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
                 }
           memcpy(jsFrame.depthToColorImageFrame.image_data, processed_depth_data, jsFrame.depthToColorImageFrame.image_length);
         
-        } else {
+        } 
+        else {
           memcpy(jsFrame.depthToColorImageFrame.image_data, image_data, jsFrame.depthToColorImageFrame.image_length);
         }
       }
@@ -1031,7 +1053,7 @@ Napi::Value MethodStartListening(const Napi::CallbackInfo& info) {
 
 				//		for (int i = 0; i < jsFrame.depthToColorImageFrame.image_length; i += 4) {
 				//			combined = (image_data[depthPixelIndex + 1] << 8) | (image_data[depthPixelIndex] & 0xff);
-				//			normalizedValue = map(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
+				//			normalizedValue = remap(combined, g_customDeviceConfig.min_depth, g_customDeviceConfig.max_depth, 255, 0);
 				//			if (normalizedValue >= 0xF0) normalizedValue = 0;
 				//			processed_depth_data[i] = normalizedValue;
 				//			processed_depth_data[i + 1] = normalizedValue;
@@ -1328,6 +1350,479 @@ Napi::Value MethodStopListening(const Napi::CallbackInfo& info) {
   return info.Env().Undefined();
 }
 
+
+
+
+
+
+
+
+
+/*
+
+Napi::Value MethodNuitrackStartListening(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  if (is_listening) {
+    Napi::TypeError::New(env, "Kinect already listening")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  is_listening = true;
+  if (info.Length() < 1) {
+    Napi::TypeError::New(env, "Wrong number of arguments")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  } else if (!info[0].IsFunction()){
+    throw Napi::TypeError::New( env, "Expected first arg to be function" );
+  }
+
+
+  tsfn = Napi::ThreadSafeFunction::New(
+    env,
+    info[0].As<Napi::Function>(),    // JavaScript function called asynchronously
+    "Kinect Azure Listening",  // Name
+    1,                         // 1 call in queue
+    1,                         // Only one thread will use this initially
+    []( Napi::Env ) {          // Finalizer used to clean threads up
+      nativeThread.join();
+      threadJoinedMutex.unlock();
+    });
+
+  threadJoinedMutex.lock();
+  nativeThread = std::thread( [] {
+    
+    auto callback = []( Napi::Env env, Napi::Function jsCallback, JSFrame* jsFrameRef ) {
+      if (!is_listening || (is_paused && !is_seeking)) {
+        // printf("[kinect_azure.cc] callback not listening\n");
+        return;
+      }
+      // printf("[kinect_azure.cc] construct data\n");
+      // Transform native data into JS data, passing it to the provided 
+      // `jsCallback` -- the TSFN's JavaScript function.
+      mtx.lock();
+      JSFrame jsFrame = *jsFrameRef;
+
+      Napi::Object data = Napi::Object::New(env);
+      {
+        Napi::Object colorImageFrame = Napi::Object::New(env);
+        Napi::Buffer<uint8_t> imageData = Napi::Buffer<uint8_t>::New(env, jsFrame.colorImageFrame.image_data, jsFrame.colorImageFrame.image_length);
+        colorImageFrame.Set(Napi::String::New(env, "imageData"), imageData);
+        colorImageFrame.Set(Napi::String::New(env, "imageLength"), Napi::Number::New(env, jsFrame.colorImageFrame.image_length));
+        colorImageFrame.Set(Napi::String::New(env, "width"), Napi::Number::New(env, jsFrame.colorImageFrame.width));
+        colorImageFrame.Set(Napi::String::New(env, "height"), Napi::Number::New(env, jsFrame.colorImageFrame.height));
+        colorImageFrame.Set(Napi::String::New(env, "strideBytes"), Napi::Number::New(env, jsFrame.colorImageFrame.stride_bytes));
+        data.Set(Napi::String::New(env, "colorImageFrame"), colorImageFrame);
+      }
+      {
+        Napi::Object depthImageFrame = Napi::Object::New(env);
+        Napi::Buffer<uint8_t> imageData = Napi::Buffer<uint8_t>::New(env, jsFrame.depthImageFrame.image_data, jsFrame.depthImageFrame.image_length);
+        depthImageFrame.Set(Napi::String::New(env, "imageData"), imageData);
+        depthImageFrame.Set(Napi::String::New(env, "imageLength"), Napi::Number::New(env, jsFrame.depthImageFrame.image_length));
+        depthImageFrame.Set(Napi::String::New(env, "width"), Napi::Number::New(env, jsFrame.depthImageFrame.width));
+        depthImageFrame.Set(Napi::String::New(env, "height"), Napi::Number::New(env, jsFrame.depthImageFrame.height));
+        depthImageFrame.Set(Napi::String::New(env, "strideBytes"), Napi::Number::New(env, jsFrame.depthImageFrame.stride_bytes));
+        data.Set(Napi::String::New(env, "depthImageFrame"), depthImageFrame);
+      }
+
+
+      // printf("[kinect_azure.cc] jsCallback.Call\n");
+      jsCallback.Call( { data } );
+      // printf("[kinect_azure.cc] callback done\n");
+      mtx.unlock();
+    };
+
+    uint8_t* processed_color_data = NULL;
+    uint8_t* processed_depth_data = NULL;
+    
+    JSFrame jsFrame;
+    while(is_listening)
+    {
+            
+      // Create new data
+      mtx.lock();
+      // printf("[kinect_azure.cc] jsFrame.reset\n");
+      jsFrame.reset();
+      k4a_image_t color_image = NULL;
+      k4a_image_t depth_image = NULL;
+
+
+      if (depth_image != NULL){
+        uint8_t* image_data = k4a_image_get_buffer(depth_image);
+        memcpy(jsFrame.depthImageFrame.image_data, image_data, jsFrame.depthImageFrame.image_length);
+      }
+      if (color_image != NULL){
+        uint8_t* image_data = k4a_image_get_buffer(color_image);
+        memcpy(jsFrame.colorImageFrame.image_data, image_data, jsFrame.colorImageFrame.image_length);        
+      }
+
+      // release images
+      if (depth_image != NULL) {
+        k4a_image_release(depth_image);
+        depth_image = NULL;
+      }
+      if (color_image != NULL) {
+        k4a_image_release(color_image);
+        color_image = NULL;
+      }
+
+     
+      if (!is_listening)
+      {
+        mtx.unlock();
+        break;
+      }
+      // Perform a blocking call
+      mtx.unlock();
+      napi_status status = tsfn.BlockingCall( &jsFrame, callback );
+      if ( status != napi_ok )
+      {
+        break;
+      }
+    }
+
+    if (processed_color_data != NULL) {
+      delete[] processed_color_data;
+      processed_color_data = NULL;
+    }
+
+    if (processed_depth_data != NULL) {
+      delete[] processed_depth_data;
+      processed_depth_data = NULL;
+    }
+
+
+    is_listening = false;
+    // printf("[kinect_azure.cc] reset jsFrame\n");
+    jsFrame.reset();
+    // printf("[kinect_azure.cc] Release thread-safe function!\n");
+    // Release the thread-safe function
+    tsfn.Release();
+    // printf("[kinect_azure.cc] Thread-safe function released!\n");
+  } );
+
+  return Napi::Boolean::New(env, true);
+}
+
+*/
+
+
+using namespace tdv::nuitrack;
+
+
+
+
+NuitrackGLSample::NuitrackGLSample() :
+	_textureID(0),
+	_textureBuffer(0),
+	_width(640),
+	_height(480),
+	// _viewMode(DEPTH_SEGMENT_MODE),
+	// _modesNumber(2),
+	_isInitialized(false)
+{}
+NuitrackGLSample::~NuitrackGLSample()
+{
+	try
+	{
+		Nuitrack::release();
+	}
+	catch (const Exception& e)
+	{
+		// Do nothing
+	}
+}
+
+
+void NuitrackGLSample::init(const std::string& config)
+{
+	// Initialize Nuitrack first, then create Nuitrack modules
+	try
+	{
+		Nuitrack::init(config);
+
+        printf("[kinect_azure.cc] Nuitrack init\n");
+	}
+	catch (const Exception& e)
+	{
+		std::cerr << "Can not initialize Nuitrack (ExceptionType: " << e.type() << ")" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	
+	// Create all required Nuitrack modules
+
+	_depthSensor = DepthSensor::create();
+	// Bind to event new frame
+	_depthSensor->connectOnNewFrame(std::bind(&NuitrackGLSample::onNewDepthFrame, this, std::placeholders::_1));
+
+	// _colorSensor = ColorSensor::create();
+	// // Bind to event new frame
+	// _colorSensor->connectOnNewFrame(std::bind(&NuitrackGLSample::onNewRGBFrame, this, std::placeholders::_1));
+
+	_outputMode = _depthSensor->getOutputMode();
+	// OutputMode colorOutputMode = _colorSensor->getOutputMode();
+	// if (colorOutputMode.xres > _outputMode.xres)
+	// 	_outputMode.xres = colorOutputMode.xres;
+	// if (colorOutputMode.yres > _outputMode.yres)
+	// 	_outputMode.yres = colorOutputMode.yres;
+
+	_width = _outputMode.xres;
+	_height = _outputMode.yres;
+
+    // // Create HandTracker module, other required modules will be
+    // // created automatically
+    // auto handTracker = HandTracker::create();
+
+    // // Connect onHandUpdate callback to receive hand tracking data
+    // handTracker->connectOnUpdate(onHandUpdate);
+
+	// _userTracker = UserTracker::create();
+	// // Binds to user tracker events
+	// _userTracker->connectOnUpdate(std::bind(&NuitrackGLSample::onUserUpdateCallback, this, std::placeholders::_1));
+	// _userTracker->connectOnNewUser(std::bind(&NuitrackGLSample::onNewUserCallback, this, std::placeholders::_1));
+	// _userTracker->connectOnLostUser(std::bind(&NuitrackGLSample::onLostUserCallback, this, std::placeholders::_1));
+
+	// _skeletonTracker = SkeletonTracker::create();
+	// // Bind to event update skeleton tracker
+	// _skeletonTracker->connectOnUpdate(std::bind(&NuitrackGLSample::onSkeletonUpdate, this, std::placeholders::_1));
+
+	_handTracker = HandTracker::create();
+	// Bind to event update Hand tracker
+	_handTracker->connectOnUpdate(std::bind(&NuitrackGLSample::onHandUpdate, this, std::placeholders::_1));
+
+	// _gestureRecognizer = GestureRecognizer::create();
+	// _gestureRecognizer->connectOnNewGestures(std::bind(&NuitrackGLSample::onNewGesture, this, std::placeholders::_1));
+
+	// _onIssuesUpdateHandler = Nuitrack::connectOnIssuesUpdate(std::bind(&NuitrackGLSample::onIssuesUpdate,
+	//                                                                   this, std::placeholders::_1));
+}
+
+bool NuitrackGLSample::update()
+{
+	if (!_isInitialized)
+	{
+		// Create texture by DepthSensor output mode
+		//initTexture(_width, _height);
+
+		// When Nuitrack modules are created, we need to call Nuitrack::run() to start processing all modules
+		try
+		{
+			Nuitrack::run();
+		}
+		catch (const Exception& e)
+		{
+			std::cerr << "Can not start Nuitrack (ExceptionType: " << e.type() << ")" << std::endl;
+			release();
+			exit(EXIT_FAILURE);
+		}
+		_isInitialized = true;
+	}
+
+    while (true)
+    {
+        try
+        {
+            // Wait for new hand tracking data
+            Nuitrack::waitUpdate(_handTracker);
+        }
+        catch (LicenseNotAcquiredException& e)
+        {
+            std::cerr << "LicenseNotAcquired exception (ExceptionType: " << e.type() << ")" << std::endl;
+            //errorCode = EXIT_FAILURE;
+            break;
+        }
+        catch (const Exception& e)
+        {
+            std::cerr << "Nuitrack update failed (ExceptionType: " << e.type() << ")" << std::endl;
+            //errorCode = EXIT_FAILURE;
+        }
+    }
+
+
+	// try
+	// {
+	// 	// Wait and update Nuitrack data
+	// 	Nuitrack::waitUpdate(_skeletonTracker);
+		
+	// 	// renderTexture();
+	// 	// renderLines();
+	// }
+	// catch (const LicenseNotAcquiredException& e)
+	// {
+	// 	// Update failed, negative result
+	// 	std::cerr << "LicenseNotAcquired exception (ExceptionType: " << e.type() << ")" << std::endl;
+	// 	return false;
+	// }
+	// catch (const Exception& e)
+	// {
+	// 	// Update failed, negative result
+	// 	std::cerr << "Nuitrack update failed (ExceptionType: " << e.type() << ")" << std::endl;
+	// 	return false;
+	// }
+	
+	return true;
+}
+
+void NuitrackGLSample::release()
+{
+	if (_onIssuesUpdateHandler)
+		Nuitrack::disconnectOnIssuesUpdate(_onIssuesUpdateHandler);
+
+	// Release Nuitrack and remove all modules
+	try
+	{
+		Nuitrack::release();
+	}
+	catch (const Exception& e)
+	{
+		std::cerr << "Nuitrack release failed (ExceptionType: " << e.type() << ")" << std::endl;
+	}
+
+	_isInitialized = false;
+	// Free texture buffer
+	if (_textureBuffer)
+	{
+		delete[] _textureBuffer;
+		_textureBuffer = 0;
+	}
+}
+
+// Callback for the hand data update event
+void NuitrackGLSample::onHandUpdate(HandTrackerData::Ptr handData)
+{
+    if (!handData)
+    {
+        // No hand data
+        std::cout << "No hand data" << std::endl;
+        return;
+    }
+
+    auto userHands = handData->getUsersHands();
+    if (userHands.empty())
+    {
+        // No user hands
+        return;
+    }
+
+    auto rightHand = userHands[0].rightHand;
+    if (!rightHand)
+    {
+        // No right hand
+        std::cout << "Right hand of the first user is not found" << std::endl;
+        return;
+    }
+
+    //std::cout << std::fixed << std::setprecision(3);
+    // std::cout << "Right hand position: "
+    //              "x = " << rightHand->xReal << ", "
+    //              "y = " << rightHand->yReal << ", "
+    //              "z = " << rightHand->zReal << std::endl;
+
+
+    nuiData.bodyFrame.X = rightHand->xReal;
+
+
+    nuiJsCallback.Call( {nuiData} );
+
+}
+
+void NuitrackGLSample::onNewDepthFrame(DepthFrame::Ptr frame)
+{
+
+	//uint8_t* texturePtr = _textureBuffer;
+	const uint16_t* depthPtr = frame->getData();
+	
+	float wStep = (float)_width / frame->getCols();
+	float hStep = (float)_height / frame->getRows();
+	
+	float nextVerticalBorder = hStep;
+
+    //printf("[kinect_azure.cc] Got new depth frame\n");
+
+
+    //nuiJsCallback.Call( {  } );
+
+	
+	for (size_t i = 0; i < _height; ++i)
+	{
+		if (i == (int)nextVerticalBorder)
+		{
+			nextVerticalBorder += hStep;
+			depthPtr += frame->getCols();
+		}
+		
+		int col = 0;
+		float nextHorizontalBorder = wStep;
+		uint16_t depthValue = *depthPtr >> 5;
+		
+		// for (size_t j = 0; j < _width; ++j, texturePtr += 3)
+		// {
+		// 	if (j == (int)nextHorizontalBorder)
+		// 	{
+		// 		++col;
+		// 		nextHorizontalBorder += wStep;
+		// 		depthValue = *(depthPtr + col) >> 5;
+		// 	}
+			
+		// 	texturePtr[0] = depthValue;
+		// 	texturePtr[1] = depthValue;
+		// 	texturePtr[2] = depthValue;
+		// }
+	}
+}
+
+
+
+NuitrackGLSample nuitrack;
+
+
+Napi::Value MethodNuitrackInit(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  nuitrack.init();
+  return Napi::Boolean::New(env, true);
+}
+
+Napi::Value MethodNuitrackUpdate(const Napi::CallbackInfo& info) {
+    
+    Napi::Env env = info.Env();
+
+    nuiJsCallback = info[0].As<Napi::Function>();    // JavaScript function called asynchronously
+
+    // nuiData = Napi::Object::New(env);
+
+    // {
+    //     Napi::Object bodyFrame = Napi::Object::New(env);
+    //     bodyFrame.Set(Napi::String::New(env, "X"), 0);
+    //     bodyFrame.Set(Napi::String::New(env, "Y"), 0);
+    //     nuiData.Set(Napi::String::New(env, "bodyFrame"), bodyFrame);
+    // }
+
+    //   {
+    //     Napi::Object colorImageFrame = Napi::Object::New(env);
+    //     Napi::Buffer<uint8_t> imageData = Napi::Buffer<uint8_t>::New(env, jsFrame.colorImageFrame.image_data, jsFrame.colorImageFrame.image_length);
+    //     colorImageFrame.Set(Napi::String::New(env, "imageData"), imageData);
+    //     colorImageFrame.Set(Napi::String::New(env, "imageLength"), Napi::Number::New(env, jsFrame.colorImageFrame.image_length));
+    //     colorImageFrame.Set(Napi::String::New(env, "width"), Napi::Number::New(env, jsFrame.colorImageFrame.width));
+    //     colorImageFrame.Set(Napi::String::New(env, "height"), Napi::Number::New(env, jsFrame.colorImageFrame.height));
+    //     colorImageFrame.Set(Napi::String::New(env, "strideBytes"), Napi::Number::New(env, jsFrame.colorImageFrame.stride_bytes));
+    //     data.Set(Napi::String::New(env, "colorImageFrame"), colorImageFrame);
+    //   }
+    //   {
+    //     Napi::Object depthImageFrame = Napi::Object::New(env);
+    //     Napi::Buffer<uint8_t> imageData = Napi::Buffer<uint8_t>::New(env, jsFrame.depthImageFrame.image_data, jsFrame.depthImageFrame.image_length);
+    //     depthImageFrame.Set(Napi::String::New(env, "imageData"), imageData);
+    //     depthImageFrame.Set(Napi::String::New(env, "imageLength"), Napi::Number::New(env, jsFrame.depthImageFrame.image_length));
+    //     depthImageFrame.Set(Napi::String::New(env, "width"), Napi::Number::New(env, jsFrame.depthImageFrame.width));
+    //     depthImageFrame.Set(Napi::String::New(env, "height"), Napi::Number::New(env, jsFrame.depthImageFrame.height));
+    //     depthImageFrame.Set(Napi::String::New(env, "strideBytes"), Napi::Number::New(env, jsFrame.depthImageFrame.stride_bytes));
+    //     data.Set(Napi::String::New(env, "depthImageFrame"), depthImageFrame);
+    //   }
+
+  nuitrack.update();
+  return Napi::Boolean::New(env, true);
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set(Napi::String::New(env, "init"), Napi::Function::New(env, MethodInit));
   exports.Set(Napi::String::New(env, "getInstalledCount"), Napi::Function::New(env, MethodGetInstalledCount));
@@ -1351,6 +1846,11 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set(Napi::String::New(env, "setColorControl"), Napi::Function::New(env, MethodSetColorControl));
   exports.Set(Napi::String::New(env, "startListening"), Napi::Function::New(env, MethodStartListening));
   exports.Set(Napi::String::New(env, "stopListening"), Napi::Function::New(env, MethodStopListening));
+
+  //nuitrack test
+  exports.Set(Napi::String::New(env, "nuitrackInit"), Napi::Function::New(env, MethodNuitrackInit));
+  exports.Set(Napi::String::New(env, "nuitrackUpdate"), Napi::Function::New(env, MethodNuitrackUpdate));
+
   return exports;
 }
 
